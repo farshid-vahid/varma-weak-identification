@@ -1,0 +1,334 @@
+/*************************************************************/
+/*                                                           */
+/*   simulate the structural parameters from the RBC model   */
+/*   then calculate the AR(1) and MA(1) roots in the VARMA   */
+/*   representation of the true DGP to examine cancelation   */
+/*                                                           */
+/*************************************************************/
+/*                                --- written by Wenying Yao */
+/*************************************************************/
+new;
+cls;
+
+library pgraph;
+graphset;
+outwidth 256;
+
+//------------------------------------------------
+// first set the mean of the structural parameters
+//------------------------------------------------
+// parameters in the model
+rho=0.35;               // capital share
+delta=0.02;             // capital quarterly depreciation rate
+beta=(1.03)^(-0.25);    // discount rate
+rhod=0.80;              // law of motion for dt
+sigd=0.009;             // s.e. of edt
+muz=0.0037;             // law of motion for zt
+sigz=0.0148;            // s.e. of ezt
+N0=1/3;                 // steady state labor supply
+
+
+//------------------------------------------------
+// initialize the simulation of 8 parameters
+//------------------------------------------------
+nsim=1000000;
+sim=zeros(nsim,8);
+coe=zeros(nsim,3);
+
+
+// draw parameters jointly
+seed=1908;
+rndseed(seed);
+
+uni=rndu(nsim+100,6);
+sim_beta=0.98+0.02*uni[.,1];		// uniform [0.98,1]
+sim_N0=2/3*uni[.,2];			// uniform [0,2/3]
+sim_delta=0.05*uni[.,3];		// uniform [0,5%]
+sim_rho=0.2+0.4*uni[.,4];		// uniform [20%,60%]
+sim_muz=0.01*uni[.,5];			// uniform [0,0.01]
+// sim_rhod=0.6+0.4*uni[.,6];		// uniform [0.6,1]		
+// sim_sigz=2*0.0148*uni[.,7];		// uniform [0,2*0.0148]
+// sim_sigd=2*0.009*uni[.,8];		// uniform [0,0.018]
+
+// beta (0.8,0.022)
+sim_rhod=rndBeta(nsim+100, 1, 5, 1.25);
+
+// inverse gamma (0.0148,1)
+az=1+1/(1-0.0148);
+bz=0.0148*(az-1);
+sim_gamz=rndGamma(nsim+100, 1, az, 1/bz);
+sim_sigz=ones(rows(sim_gamz),1)./sim_gamz;
+
+// inverse gamma (0.009,1)
+ad=1+1/(1-0.009);
+bd=0.009*(az-1);
+sim_gamd=rndGamma(nsim+100, 1, ad, 1/bd);
+sim_sigd=ones(rows(sim_gamd),1)./sim_gamd;			
+
+i=1; do while i<=nsim;
+       
+    //print "number of simulation" i;
+    //print;
+	
+	beta=sim_beta[i];
+	N0=sim_N0[i];
+	delta=sim_delta[i];
+	rho=sim_rho[i];
+	muz=sim_muz[i];
+	rhod=sim_rhod[i];
+	sigz=sim_sigz[i];
+	sigd=sim_sigd[i];
+	
+	Zhat0=exp(muz);
+	R0=Zhat0/beta;
+
+    //rho=rndbeta(1,1,2,4);
+    //delta=rndbeta(1,1,1.05,14);
+    sim[i,.]=beta~N0~delta~rho~muz~rhod~sigz~sigd;
+
+    // calculate the coefficients in the state-space form
+    { R,S,P,Q } = RBC_solve(beta,delta,rho,rhod,muz,N0);	
+    if R==0;
+        goto drop;
+        nsim=nsim+1;
+    endif;       
+	
+    // find the final form VARMA(2,1) model for nt and DlnYt
+    { A0, AR1, MA1,psai_0, psai_1, pai_0 } = VARMA_solve(rhod,R,S,P,Q);
+
+    // find the possible near cancelation in the roots
+    { kappa, arcoe, macoe } = roots_solve(sigz,sigd,A0,AR1,MA1,psai_0);
+    coe[i,.]=kappa~arcoe~macoe;
+
+drop:
+i=i+1; endo;
+
+sim=delif(sim,(sim[.,1].==0) .and (sim[.,2].==0));
+coe=delif(coe,(coe[.,1].==0) .and (coe[.,2].==0) .and (coe[.,3].==0));
+
+// save coe;
+// save sim;
+// print "rows(coe)" rows(coe);
+
+// find the parameterization that make the AR and MA coefficients far from each other
+Darma=abs(coe[.,2]-coe[.,3]);
+sim_far=selif(sim,Darma[.,1] .> 0.1);
+coe_far=selif(coe,Darma[.,1] .> 0.1);
+
+// save the simulated coefficients and kappa, AR(1), MA(1) roots to output file
+output file = D:\RBCpaper\codes\simroots.asc reset;
+screen off;
+print sim~coe;
+
+output off;
+screen on;
+print sim_far~coe_far[.,2 3];
+print;
+print rows(sim_far);
+
+
+/*********************************************************/
+/******** formula of solving a quadratic equation ********/
+/*********************************************************/
+proc quadratic(a,b,c);
+	local br,x1,x2,x;	
+	br=sqrt(b^2-4*a*c);
+	x1=(-b+br)/(2*a);
+	x2=(-b-br)/(2*a);
+	x=x1|x2;
+retp (x);
+endp;
+
+
+/*********************************************************/
+/******* find log-linearized solution of RBC model *******/
+/*********************************************************/
+proc (4)=RBC_solve(beta,delta,rho,rhod,muz,N0);
+	local Zhat0,R0,YKa,YKb,Khat0,Yhat0,Chat0,A,cy,ky,
+	B,C,D,F,G,H,J,z1,D1,hh1,hh2,hh3,R,S,P,Q,gg1,gg2,gg3,
+	s1,s2;
+
+	Zhat0=exp(muz);         // steady state Zhat
+	R0=Zhat0/beta;          // steady state gross interest rate
+	
+    // solve Khat0 from ratio of Y/K
+    YKa=(R0-(1-delta))/(rho*Zhat0);
+    YKb=(N0^(1-rho))*((1/Zhat0)^rho);
+    Khat0=(YKa/YKb)^(1/(rho-1));
+    Yhat0=((Khat0/Zhat0)^rho)*((N0)^(1-rho));
+    Chat0=Yhat0-Khat0*(1-(1-delta)/Zhat0);
+    cy=Chat0/Yhat0;         // steady state consumption-output ratio
+    ky=Khat0/Yhat0;         // steady state capital-output ratio
+	
+    // solve the model and express the solution as VAR
+    let B[4,1]= 0, 0, 0, 0;
+    B[1,1]=ky;
+    
+    let C[4,1]= 0, 0, 0, -1;
+    C[2]=rho;
+    C[1]=-(1-delta)*ky/Zhat0;
+    
+    let D[4,4]= 0   0   0   -1,
+                0   0   0   -1,
+                1   0   1   -1,
+                0   0   0   1;
+    D[1,3]=cy;
+    D[2,1]=1-rho;
+    D[4,2]=-R0*ky/(rho*Zhat0);
+    
+    let F[4,2]= 0     0,
+                0     0,
+                0     1,
+                1     0;
+    F[1,1]=(1-delta)*ky/Zhat0;
+    F[2,1]=-rho;
+    
+    let G[1,4]= 0   1   -1  0;    
+    let H[1,4]= 0   0   1   0;   
+    let J[1,2]= -1   0;
+        
+    let z1[2,2]= 0  0,
+                 0  0;
+    z1[2,2]=rhod;
+    
+    D1=inv(D);
+    
+    hh1=G*D1*B;
+    hh2=G*D1*C+H*D1*B;
+    hh3=H*D1*C;
+    { R } = quadratic(hh1,hh2,hh3);
+    R=delif(R,abs(R[.,1]) .> 1);
+
+    if rows(R)==0;
+		R=0;
+    endif;
+
+    P=-D1*(B*R+C);
+    
+    gg1=G*P-H*D1*B;
+    gg2=-G*D1*B;
+    gg3=J*z1-G*D1*F*z1-H*D1*F;
+    
+    s1=-gg3[1]/gg1;
+    s2=-gg3[2]/(gg1+rhod*gg2);
+    S=s1~s2;
+    
+    Q=-D1*(B*S+F);
+	
+retp (R,S,P,Q);
+endp;
+
+
+/*********************************************************/
+/******* solve VARMA(1,1) from the state-space form ******/
+/*********************************************************/
+proc (6)=VARMA_solve(rhod,R,S,P,Q);
+	local p1,p2,q1,q2,s2,ma0,ma1,AR11,AR12,AR21,AR22,
+	newAR11,newAR12,newAR21,newAR22,row1,row2,row3,row4,
+	newMA1,newMA2,phai_1,phai_2,psai_0,psai_1,pai_1,
+	AAR11,AAR12,AAR21,AAR22,AAR,MMA11,MMA12,MMA,AO21,AO;
+	
+	p1=P[1];
+	p2=P[4];
+	q1=Q[1,2];
+	q2=Q[4,2];
+	s2=S[2];
+  
+	ma0=q1*(p2-1)-p1*q2;
+	ma1=-(p1*s2+p2*q1-p1*q2-q1*R);
+	
+    // calculate the AR coefficient matrix Phi(L)
+	AR11=(q2)~(p2*s2-q2*R-q2)~(-(p2*s2-q2*R));
+	AR12=(-q1)~(q1*R-p1*s2);
+	AR21=(p2-1)~(rhod*(1-p2)-(p2-R))~(rhod*(p2-R));
+	AR22=(-p1)~(p1*rhod);
+	
+	newAR11=AR11-(AR12[1]/AR22[1])*AR21;
+	newAR12=AR12-(AR12[1]/AR22[1])*AR22;
+	newMA1=ma0~ma1~(-AR12[1]/AR22[1]*(ma0~ma1));
+	row1=(newAR11~newAR12)/newAR11[1];
+	row2=newMA1/newAR11[1];
+	
+	newAR21=AR21-(AR21[1]/AR11[1])*AR11;
+	newAR22=AR22-(AR21[1]/AR11[1])*AR12;
+	newMA2=(-AR21[1]/AR11[1]*(ma0~ma1))~ma0~ma1;
+	row3=(newAR21~newAR22)/newAR22[1];
+	row4=newMA2/newAR22[1];
+
+	// arrange coefficients into places
+	phai_1=zeros(2,2);
+	phai_1[1,1]=-row1[2]; phai_1[1,2]=-row1[5]; phai_1[2,1]=-row3[2]; phai_1[2,2]=-row3[5];
+	phai_2=zeros(2,2); 
+	phai_2[1,1]=-row1[3]; phai_2[2,1]=-row3[3];
+	psai_0=zeros(2,2);
+	psai_0[1,1]=row2[1]; psai_0[1,2]=row2[3]; psai_0[2,1]=row4[1]; psai_0[2,2]=row4[3];
+	psai_1=zeros(2,2);
+	psai_1[1,1]=row2[2]; psai_1[1,2]=row2[4]; psai_1[2,1]=row4[2]; psai_1[2,2]=row4[4];
+	pai_1=psai_1*inv(psai_0);
+
+    // find out the VARMA(1,1) structure by imposing SCM(1,0)~SCM(1,1)
+	AAR22=0;
+	MMA11=ma1/ma0;
+	
+	AO21=-(phai_1[2,2]+MMA11)/phai_1[1,2];
+	MMA12=(-phai_2[1,1]/phai_2[2,1]*MMA11)/(1+phai_2[1,1]/phai_2[2,1]*AO21);
+	AAR21=-phai_2[1,1]/MMA12;
+	AAR11=phai_1[1,1]-MMA12*AO21;
+	AAR12=phai_1[1,2]-MMA12;
+	
+	AO=eye(2);
+	AO[2,1]=AO21;
+	AAR=(AAR11~AAR12)|(AAR21~AAR22);
+	MMA=(MMA11~MMA12)|zeros(1,2);
+
+retp(AO,AAR,MMA,psai_0,psai_1,pai_1);
+endp;
+
+
+/**********************************************************/
+/* calculate AR(1) and MA(1) coefficients from VARMA(1,1) */
+/**********************************************************/
+proc (3)=roots_solve(sigz,sigd,A0,AR1,MA1,psai_0);
+	local coe2,coe1,coe0,kap,coe_n,i,vcv,vcvu,BD,AC,newvcv,
+	newcov,quadra,coe_ma,root,sta_root,md;
+	
+	// choose kappa such that root_nlag equals to root_ylag
+	coe2=AR1[2,1];
+	coe1=AR1[1,1]-A0[2,1]*AR1[1,2];
+	coe0=-AR1[1,2];
+	{ kap } = quadratic(coe2,coe1,coe0);
+	
+	coe_n=zeros(rows(kap),cols(kap));
+    i=1; do while i<=rows(kap);
+        coe_n[i]=(AR1[1,1]+AR1[2,1]*kap[i])/(1+A0[2,1]*kap[i]);
+    i=i+1; endo;
+
+	// then solve for the MA(1) coefficient
+    vcv=(sigz^2~0)|(0~sigd^2);
+    vcvu=psai_0*vcv*psai_0';
+    BD=MA1[1,.];
+    AC=ones(rows(kap),1)~kap;
+	
+    newvcv=zeros(rows(kap),cols(kap));
+    newcov=zeros(rows(kap),cols(kap));
+    quadra=zeros(rows(kap),cols(kap));
+    coe_ma=zeros(rows(kap),cols(kap));
+
+    i=1; do while i<=rows(kap);
+        newvcv[i]=AC[i,.]*vcvu*AC[i,.]'+BD*vcvu*BD';
+        newcov[i]=BD*vcvu*AC[i,.]';
+        quadra[i]=-newvcv[i]/newcov[i];
+        { root } = quadratic(1,quadra[i],1);
+        sta_root=delif(root,abs(root).>1);
+        if rows(sta_root) /= 0;
+            coe_ma[i]=-sta_root;
+        endif;
+    i=i+1; endo;
+	
+    md=abs(coe_ma-coe_n);
+    kap=kap[minindc(md)];
+    coe_n=coe_n[minindc(md)];
+    coe_ma=coe_ma[minindc(md)];
+	
+retp (kap,coe_n,coe_ma);
+endp;

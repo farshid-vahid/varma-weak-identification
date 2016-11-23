@@ -1,0 +1,357 @@
+new;
+cls;
+
+// parameters in the RBC model
+rho=0.35;               // capital share
+delta=0.02;             // capital quarterly depreciation rate
+beta=(1.03)^(-0.25);    // discount rate
+rhod=0.80;              // law of motion for dt
+sigmad=0.009;           // s.e. of edt
+muz=0.0037;             // law of motion for zt
+sigmaz=0.0148;          // s.e. of ezt
+
+// steady state values
+N0=1/3;                 // steady state labor supply
+Zhat0=exp(muz);         // steady state Zhat
+R0=Zhat0/beta;          // steady state gross interest rate
+D0=1;                   // steady state D
+
+// solve Khat0 from ratio of Y/K
+YKa=(R0-(1-delta))/(rho*Zhat0);
+YKb=(N0^(1-rho))*((1/Zhat0)^rho);
+Khat0=(YKa/YKb)^(1/(rho-1));
+Yhat0=((Khat0/Zhat0)^rho)*((N0)^(1-rho));
+Chat0=Yhat0-Khat0*(1-(1-delta)/Zhat0);
+A=(1-rho)*Yhat0/(Chat0*N0*D0);
+cy=Chat0/Yhat0;         // steady state consumption-output ratio
+ky=Khat0/Yhat0;         // steady state capital-output ratio
+//print "c/y ratio" cy;
+//print "k/y ratio" ky;
+//print;
+
+// solve the model and express the solution as VAR
+let B[4,1]= 0, 0, 0, 0;
+B[1,1]=ky;
+
+let C[4,1]= 0, 0, 0, -1;
+C[2]=rho;
+C[1]=-(1-delta)*ky/Zhat0;
+//print "C[1]" C[1];
+//print;
+
+let D[4,4]= 0   0   0   -1,
+            0   0   0   -1,
+            1   0   1   -1,
+            0   0   0   1;
+D[1,3]=cy;
+D[2,1]=1-rho;
+D[4,2]=-R0*ky/(rho*Zhat0);
+//print "D[4,2]" D[4,2];
+//print;
+
+let F[4,2]= 0     0,
+            0     0,
+            0     1,
+            1     0;
+F[1,1]=(1-delta)*ky/Zhat0;
+F[2,1]=-rho;
+
+let G[1,4]= 0   1   -1  0;
+
+let H[1,4]= 0   0   1   0;
+
+let J[1,2]= -1   0;
+
+
+let z1[2,2]= 0  0,
+             0  0;
+z1[2,2]=rhod;
+
+D1=inv(D);
+
+hh1=G*D1*B;
+hh2=G*D1*C+H*D1*B;
+hh3=H*D1*C;
+
+//print hh1;
+//print hh2;
+//print hh3;
+//print;
+
+hh=sqrt(hh2^2-4*hh1*hh3);
+x1=(-hh2+hh)/(2*hh1);
+x2=(-hh2-hh)/(2*hh1);
+X=x1|x2;
+//print X;
+R=minc(x);
+//print;
+//print"     R" R;
+//     R      0.94588174
+
+P=-D1*(B*R+C);
+//print;
+//print "     P" P;
+/* P
+     -0.48210906 
+    -0.029679403 
+      0.51873817 
+     0.036629110   */
+
+gg1=G*P-H*D1*B;
+gg2=-G*D1*B;
+gg3=J*z1-G*D1*F*z1-H*D1*F;
+//print;
+//print gg1;
+//print gg2;
+//print gg3;
+s1=-gg3[1]/gg1;
+s2=-gg3[2]/(gg1+rhod*gg2);
+S=s1~s2;
+//print;
+//print "     S" S;
+//     S     -0.94588174      -0.12816408 
+
+Q=-D1*(B*S+F);
+//print;
+//print "     Q" Q;
+/*     Q
+      0.48210906       -2.4029786 
+     0.029679403     -0.048119921 
+     -0.51873817      -0.15895749 
+    -0.036629110       -1.5619361 */
+
+
+
+
+// VARMA representation for nt and DlnYt
+p1=P[1];
+p2=P[4];
+q1=Q[1,2];
+q2=Q[4,2];
+// print p1~q1;
+// print p2~q2;
+
+
+
+// calculate G*(L)
+ivQ=inv((-p1~q1)|(-p2~q2));
+z1L=zeros(2,2);
+z1L[2,2]=-rhod;
+gstar1=(p1|p2)*S*ivQ;
+gstar2=(R~0)|(0~R);
+gstar=gstar1-gstar2;
+//print;
+//print gstar1;
+//print gstar2;
+//print "G*(L)";
+//print gstar;
+//print;
+//print;
+AAA1=z1L*ivQ+ivQ*gstar;
+AAA2=z1L*ivQ*gstar;
+//print "AAA0" ivQ;
+//print "AAA1" AAA1;
+//print "AAA2" AAA2;
+//print;
+//print;
+DDD0=(ivQ[2,2]~-ivQ[1,2])|(-ivQ[2,1]~ivQ[1,1]);
+DDD1=(AAA1[2,2]~-AAA1[1,2])|(-AAA1[2,1]~AAA1[1,1]);
+DDD2=(AAA2[2,2]~-AAA2[1,2])|(-AAA2[2,1]~AAA2[1,1]);
+MMM=zeros(2,2);
+MMM[2,2]=-1;
+yy1=ddd1+mmm*ddd0;
+yy2=ddd2+mmm*ddd1;
+yy3=mmm*ddd2;
+//print "oo0" DDD0;
+//print "oo1" yy1;
+//print "oo2" yy2;
+//print "oo3" yy3;
+
+ma0=q1*(p2-1)-p1*q2;
+ma1=-(p1*s2+p2*q1-p1*q2-q1*R);
+//print;
+//print;
+//print "      ma0" ma0;
+//print "      ma1" ma1;
+print "MA root" ma0/-ma1;
+/****   Phi(L) (nt DlnYt)' = ( ma0 + ma1 L ) ( ezt edt )'  ****/
+//print;
+//print;
+
+// calculate Phi(L)
+//print "       constant + _____ L + _____ L^2";
+print "11-element:";
+AR11_0=q2;
+AR11_1=p2*s2-q2*R-q2;
+AR11_2=-(p2*s2-q2*R);
+AR11=AR11_0~AR11_1~AR11_2;
+//print AR11;
+(-AR11_1+sqrt(AR11_1^2-4*AR11_0*AR11_2))/(2*AR11_2);
+(-AR11_1-sqrt(AR11_1^2-4*AR11_0*AR11_2))/(2*AR11_2);
+
+//print;
+print "12-element:";
+AR12_0=-q1;
+AR12_1=q1*R-p1*s2;
+AR12=AR12_0~AR12_1;
+//print AR12;
+AR12[1]/-AR12[2];
+
+//print;
+print "21-element:";
+AR21_0=p2-1;
+AR21_1=rhod*(1-p2)-(p2-R);
+AR21_2=rhod*(p2-R);
+AR21=AR21_0~AR21_1~AR21_2;
+//print AR21;
+(-AR21_1+sqrt(AR21_1^2-4*AR21_0*AR21_2))/(2*AR21_2);
+(-AR21_1-sqrt(AR21_1^2-4*AR21_0*AR21_2))/(2*AR21_2);
+
+//print;
+print "22-element:";
+AR22_0=-p1;
+AR22_1=p1*rhod;
+AR22=AR22_0~AR22_1;
+//print AR22;
+AR22[1]/-AR22[2];
+
+
+print;
+print;
+//print " final form equation for nt";
+newAR11=AR11-(AR12_0/AR22_0)*AR21;
+newAR12=AR12-(AR12_0/AR22_0)*AR22;
+newMA1=ma0~ma1~(-AR12_0/AR22_0*(ma0~ma1));
+row1=(newAR11~newAR12)/newAR11[1];
+row2=newMA1/newAR11[1];
+//print "AR coefficients" row1;
+//print "MA coefficients" row2;
+
+//print;
+//print;
+//print " final form equation for DlnYt";
+newAR21=AR21-(AR21_0/AR11_0)*AR11;
+newAR22=AR22-(AR21_0/AR11_0)*AR12;
+newMA2=(-AR21_0/AR11_0*(ma0~ma1))~ma0~ma1;
+row3=(newAR21~newAR22)/newAR22[1];
+row4=newMA2/newAR22[1];
+//print "AR coefficients" row3;
+//print "MA coefficients" row4;
+//print;
+//print;
+
+
+
+// final form VARMA(2,1) model for nt and DlnYt
+phai_1=zeros(2,2); phai_2=zeros(2,2); psai_0=zeros(2,2); psai_1=zeros(2,2);
+phai_1[1,1]=-row1[2]; phai_1[1,2]=-row1[5]; phai_1[2,1]=-row3[2]; phai_1[2,2]=-row3[5];
+phai_2[1,1]=-row1[3]; phai_2[2,1]=-row3[3];
+psai_0[1,1]=row2[1]; psai_0[1,2]=row2[3]; psai_0[2,1]=row4[1]; psai_0[2,2]=row4[3];
+psai_1[1,1]=row2[2]; psai_1[1,2]=row2[4]; psai_1[2,1]=row4[2]; psai_1[2,2]=row4[4];
+pai_1=psai_1*inv(psai_0);
+
+// y(t) = phai_1 * y(t-1) + phai_2 * y(t-2) + psai_0 * e(t) + psai_1 * e(t-1)
+// let u(t) = psai_0 * e(t)
+// y(t) = phai_1 * y(t-1) + phai_2 * y(t-2) + u(t) + pai_1 * u(t-1)
+print "VARMA model from theoretical model";
+print "phai_1" phai_1;
+print "phai_2" phai_2;
+print "MA_0" psai_0;
+print "MA_1" psai_1;
+print "pi_1" pai_1;
+print;
+print;
+/*
+phai_1
+       1.6478593       0.12727329 
+     -0.19176099        1.0543229 
+phai_2
+     -0.66451103       0.00000000 
+      0.18093733       0.00000000 
+MA_0
+      0.48210906       -2.4029786 
+      0.96337089       -1.5619361 
+MA_1
+     -0.46104110        2.2979695 
+     -0.92127199        1.4936801 
+*/
+
+
+
+// find out the VARMA(1,1) structure by imposing SCM(1,0)~SCM(1,1)
+AAR22=0;
+MMA11=ma1/ma0;
+AO21=-(phai_1[2,2]+MMA11)/phai_1[1,2];
+MMA12=(-phai_2[1,1]/phai_2[2,1]*MMA11)/(1+phai_2[1,1]/phai_2[2,1]*AO21);
+AAR21=-phai_2[1,1]/MMA12;
+AAR11=phai_1[1,1]-MMA12*AO21;
+AAR12=phai_1[1,2]-MMA12;
+AO=eye(2);
+AO[2,1]=AO21;
+AAR=(AAR11~AAR12)|(AAR21~AAR22);
+MMA=(MMA11~MMA12)|zeros(1,2);
+print "LHS transformation matrix" AO;
+print "AR(1) coefficient matrix" AAR;
+print "MA(1) coefficient matrix" MMA;
+SMA_0=AO*psai_0;
+SMA_1=MMA*AO*psai_0;
+print "coefficient matrix for structure shocks -0" SMA_0;
+print "coefficient matrix for structure shocks -1" SMA_1;
+print;
+print;
+
+// check the VARMA(1,1) is correct or not
+MMAadj=(0~-MMA12)|(0~MMA11);
+inv(AO)*(AAR-MMAadj*AO);
+inv(AO)*MMAadj*AAR;
+inv(AO)*SMA_0;
+MMA11*inv(AO)*SMA_0;
+
+
+// impulse responses from the VARMA(2,1) representation
+ARorder=2;
+MAorder=1;
+tp=100;
+
+phai=phai_1~phai_2~pai_1;
+comp=phai|(eye(2)~zeros(2,4))|zeros(2,6);
+print "eigenvalues of the companion matrix";
+eig(comp[1:4,1:4]);
+{ s_irf } = s_response(2,ARorder,MAorder,comp,tp,psai_0);
+n_z=s_irf[.,1];
+n_d=s_irf[.,3];
+y_d=zeros(rows(s_irf),1);
+y_z=zeros(rows(s_irf),1);
+i=1; do while i<=rows(y_z);
+    y_z[i]=sumc(s_irf[1:i,2]);
+    y_d[i]=sumc(s_irf[1:i,4]);
+i=i+1; endo;
+print;
+print;
+print y_z~y_d~n_z~n_d;
+
+
+
+proc s_response(nv,ARorder,MAorder,a,length,tsf);
+    local ut,lag,resps,subresps,compes,i,j,irp;
+ut = tsf;
+lag=ARorder+MAorder;
+resps = zeros(lag*nv,length+1);
+subresps = zeros(nv,length+1);
+i=1; do while i <= nv;
+    compes = zeros(lag*nv,1);
+    compes[1:nv] = ut[.,i];
+    compes[ARorder*nv+1:(ARorder+1)*nv] = ut[.,i];
+    resps[.,1] = compes;
+    j=1; do while j <= length;
+        resps[.,j+1] = a*resps[.,j];
+    j=j+1; endo;
+    subresps = resps[1:nv,.];        
+    if i == 1;
+        irp = subresps;
+    else;
+        irp = irp|subresps;
+    endif;
+i=i+1; endo;
+    retp(irp');
+endp;
