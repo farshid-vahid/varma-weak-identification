@@ -18,5 +18,5 @@ This set of GAUSS codes calculate the impulse responses functions generated from
 
 * **simroots.asc** gives the values of simulated AR and MA roots from Section 3.
 
-* **plot_roots.m* generates figure 2 in the paper.
+* **plot_roots.m** generates figure 2 in the paper.
 
