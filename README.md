@@ -6,7 +6,7 @@ This set of GAUSS codes calculate the impulse responses functions generated from
 
 * **irf_true.gss** calculates the true final form VARMA representation for the observable variables n_t and \Delta ln Y_t from the log-linearized solution of the RBC model, then finds out its simplest VARMA(1,1) structure by imposing the scalar component model (SCM) structure. The last part of the codes calculates the impulse responses of n_t and \Delta ln Y_t to the two structural shocks z_t and d_t.
 
-* **irf_ci_var200.gss** uses data of 200 observations from the true VARMA DGP of the RBC model, then fits finite lag VAR model and calculate the impulse responses for 10000 replications, along with the 2.5 and 97.5 percentile intervals.
+* **irf_ci_var200.pgm** uses data of 200 observations from the true VARMA DGP of the RBC model, then fits finite lag VAR model and calculate the impulse responses for 10000 replications, along with the 2.5 and 97.5 percentile intervals.
 
 * **irf_ci_varma200.gss** fits a VARMA(1,1) model with the SCM structure to a simulated sample path of 200 observations from the true VARMA DGP of the RBC model and calculate the impulse responses. This codes then repeats the same exercise for 10000 simulations, and calculate the 2.5 and 97.5 percentile intervals of the simulated impulse responses.
 
