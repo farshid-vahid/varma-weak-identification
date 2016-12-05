@@ -20,7 +20,7 @@ This set of GAUSS codes calculate the impulse responses functions generated from
 
 * **plot_roots.m** generates figure 2 in the paper. Requires MATLAB.
 
-## Dependecies
+## Dependencies
 
 * [GAUSS](http://www.aptech.com/products/gauss-mathematical-and-statistical-system/)
 
