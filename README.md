@@ -24,5 +24,5 @@ This set of GAUSS codes calculate the impulse responses functions generated from
 
 * [GAUSS](http://www.aptech.com/products/gauss-mathematical-and-statistical-system/)
 
-* MATLAB
+* [MATLAB](https://mathworks.com)
 
