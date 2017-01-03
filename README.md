@@ -10,19 +10,13 @@ This set of GAUSS codes calculate the impulse responses functions generated from
 
 * **irf_ci_varma200.gss** fits a VARMA(1,1) model with the SCM structure to a simulated sample path of 200 observations from the true VARMA DGP of the RBC model and calculate the impulse responses. This codes then repeats the same exercise for 10000 simulations, and calculate the 2.5 and 97.5 percentile intervals of the simulated impulse responses.
 
-* **sim_roots.gss** outlines the simulation exercise in Section 3 of the paper. It simulates structural parameters from given distributions and calculate the AR and MA roots for different sets of structural parameters.
+* **sim_roots.gss** outlines the simulation exercise in Section 3. It simulates structural parameters from given distributions and calculate the AR and MA roots for different sets of structural parameters.
 
 ## Auxiliary codes
 
 * **simulation.txt** is one sample path of 200 observations simulated from the true VARMA DGP of the RBC model.
 
-* **simroots.asc** gives the values of simulated AR and MA roots from Section 3.
+* **root_RBC.m** takes the parameter matrices in the reduced form equation (1) and (2) and calculates the AR and MA roots for this DGP using the method outlined in Section 3.
 
-* **plot_roots.m** generates figure 2 in the paper. Requires MATLAB.
-
-## Dependencies
-
-* [GAUSS](http://www.aptech.com/products/gauss-mathematical-and-statistical-system/)
-
-* [MATLAB](https://mathworks.com)
+* **plot_roots.m* uses the simulated values of the AR and MA roots from Section 3 and generates Figure 2 in the paper.
 

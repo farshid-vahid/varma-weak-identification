@@ -305,7 +305,7 @@ proc (3)=roots_solve(sigz,sigd,A0,AR1,MA1,psai_0);
 
 	// then solve for the MA(1) coefficient
     vcv=(sigz^2~0)|(0~sigd^2);
-    vcvu=psai_0*vcv*psai_0';
+    vcvu=A0*psai_0*vcv*psai_0’*A0’;
     BD=MA1[1,.];
     AC=ones(rows(kap),1)~kap;
 	
