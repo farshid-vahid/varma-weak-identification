@@ -16,7 +16,7 @@ This set of GAUSS codes calculate the impulse responses functions generated from
 
 * **root_RBC.m** performs the calculation on page 7 of the paper. It takes the parameter matrices in the reduced form equation (1) and (2) and calculates the AR and MA roots for this DGP using the method outlined in Section 3.
 
-* **plot_roots.m* generates Figure 2 in the paper. It uses the simulated values of the AR and MA roots (which was saved in file simroots.asc), and plots their distribution in the 2-dimensional space. 
+* **plot_roots.m** generates Figure 2 in the paper. It uses the simulated values of the AR and MA roots (which was saved in file simroots.asc), and plots their distribution in the 2-dimensional space. 
 
 
 
